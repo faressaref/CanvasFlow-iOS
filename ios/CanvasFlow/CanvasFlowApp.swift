@@ -17,7 +17,12 @@ struct CanvasFlowWebView: UIViewRepresentable {
         config.allowsInlineMediaPlayback = true
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.scrollView.contentInsetAdjustmentBehavior = .never
-        webView.load(URLRequest(url: URL(string: "https://canvasios.vercel.app")!))
+
+        // Always fetch the current Vercel web app instead of reusing an older WebView cache.
+        let url = URL(string: "https://canvasios.vercel.app/?appbuild=ai-20260914-1")!
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        webView.load(request)
         return webView
     }
 
