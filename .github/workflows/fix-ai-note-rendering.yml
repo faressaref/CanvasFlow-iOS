@@ -1,0 +1,62 @@
+name: Fix AI note rendering
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix-ai-note-rendering:
+    if: ${{ !startsWith(github.event.head_commit.message, 'Fix AI note rendering') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Repair AI note text wrapping
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('public/index.html')
+          s = p.read_text(encoding='utf-8')
+
+          replacements = {
+              "split(/s+/)": "split(/\\s+/)",
+              "replace(/r/g, '')": "replace(/\\r/g, '')",
+              "const paragraphs = raw.split('');": "const paragraphs = raw.split(/\\n{2,}/);",
+              "^#{1,3}s+": "^#{1,3}\\s+",
+              "^[-*]s+": "^[-*]\\s+",
+          }
+
+          before = s
+          for old, new in replacements.items():
+              s = s.replace(old, new)
+
+          # Make the AI result itself behave like normal readable Arabic study notes.
+          marker = ".ai-result {"
+          if marker in s and "word-break:normal" not in s[s.index(marker):s.index(marker)+500]:
+              start = s.index(marker)
+              end = s.index("}", start)
+              block = s[start:end]
+              block += "; direction:rtl; text-align:right; word-break:normal; overflow-wrap:break-word; unicode-bidi:plaintext"
+              s = s[:start] + block + s[end:]
+
+          if s == before:
+              print('No changes needed.')
+          else:
+              p.write_text(s, encoding='utf-8')
+              print('AI note rendering repaired.')
+      
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/index.html
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+          else
+            git commit -m "Fix AI note rendering [skip ci]"
+            git push
+          fi
