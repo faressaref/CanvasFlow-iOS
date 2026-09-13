@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node scripts/fix-ai-note.js",
+  "buildCommand": "node scripts/fix-ai-note.js && node scripts/pastel-ai-note.js",
   "rewrites": [
     { "source": "/", "destination": "/public/index.html" }
   ]
