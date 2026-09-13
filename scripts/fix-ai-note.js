@@ -12,7 +12,8 @@ const replacements = [
   ["gemini-2.5-flash", "gemini-3.6-flash"],
   ["localStorage.getItem(\"canvasflow-ai-endpoint\") || \"\"", "localStorage.getItem(\"canvasflow-ai-endpoint\") || \"/api/study\""],
   ["localStorage.getItem(\"canvasflow-ai-endpoint\") || \"/api/study\"", "\"/api/study\""],
-  ["const endpoint = aiEndpoint.value.trim() || \"/api/study\";", "const endpoint = \"/api/study\";"]
+  ["const endpoint = aiEndpoint.value.trim() || \"/api/study\";", "const endpoint = \"/api/study\";"],
+  ["method:\"POST\",\n      headers:{\"Content-Type\":\"application/json\"},", "method:\"POST\",\n      cache:\"no-store\",\n      headers:{\"Content-Type\":\"application/json\",\"Cache-Control\":\"no-cache\"},"]
 ];
 
 for (const [from, to] of replacements) s = s.split(from).join(to);
