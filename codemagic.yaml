@@ -7,33 +7,16 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.canvasflow.app
-      vars:
-        XCODE_PROJECT: "ios/CanvasFlow.xcodeproj"
-        XCODE_SCHEME: "CanvasFlow"
       xcode: latest
     scripts:
-      - name: Resolve Swift packages
+      - name: Select signing profiles
         script: |
-          xcodebuild -resolvePackageDependencies \
-            -project "$XCODE_PROJECT" \
-            -scheme "$XCODE_SCHEME"
-      - name: Build and archive
+          xcode-project use-profiles
+      - name: Build IPA
         script: |
-          xcodebuild archive \
-            -project "$XCODE_PROJECT" \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -archivePath build/CanvasFlow.xcarchive \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="$CM_DEVELOPMENT_TEAM"
+          xcode-project build-ipa \
+            --project "ios/CanvasFlow.xcodeproj" \
+            --scheme "CanvasFlow"
     artifacts:
-      - build/CanvasFlow.xcarchive/**/*.ipa
+      - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
-    publishing:
-      email:
-        recipients:
-          - "$CM_EMAIL"
-        notify:
-          success: true
-          failure: true
