@@ -1,0 +1,30 @@
+name: Build CanvasFlow IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build unsigned iOS app
+        run: |
+          set -e
+          xcodebuild             -project CanvasFlowIOS/CanvasFlowIOS.xcodeproj             -scheme CanvasFlowIOS             -configuration Release             -sdk iphoneos             -derivedDataPath build             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             build
+
+      - name: Package IPA
+        run: |
+          set -e
+          rm -rf Payload CanvasFlowIOS-unsigned.ipa
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/CanvasFlowIOS.app Payload/
+          zip -r CanvasFlowIOS-unsigned.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: CanvasFlow-IPA
+          path: CanvasFlowIOS-unsigned.ipa
