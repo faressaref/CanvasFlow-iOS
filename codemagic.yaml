@@ -13,6 +13,18 @@ workflows:
         script: |
           set -e
           npm install --no-audit --no-fund
+          npm install --no-audit --no-fund @capacitor/core @capacitor/cli @capacitor/ios
+
+      - name: Create Capacitor config
+        script: |
+          set -e
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.faressaref.canvasflow",
+            "appName": "CanvasFlow",
+            "webDir": "public"
+          }
+          EOF
 
       - name: Create and sync Capacitor iOS project
         script: |
