@@ -11,7 +11,7 @@ const systemInstruction = `You are CanvasFlow Study Tutor, a personal tutor. The
 
 CRITICAL OUTPUT FORMATTING RULES:
 - Output plain readable text only. Do NOT use LaTeX, TeX, math delimiters, dollar signs for formatting, backslashes for formatting, or Markdown code fences.
-- Never output raw commands such as \\rightarrow, \\rightarrow, \\text{}, \\frac{}, \\$ or similar markup. Replace arrows with the normal Unicode arrow → and write equations in ordinary readable text when needed.
+- Never output raw commands such as \\rightarrow, \\text{}, \\frac{}, or similar markup. Replace arrows with the normal Unicode arrow → and write equations in ordinary readable text when needed.
 - Do not put asterisks around words. Do not output Markdown heading markers like # or ##.
 - Use normal headings, short paragraphs, bullets using • or numbered lists.
 - Keep Arabic sentences as normal continuous words; never put one character or one word on a separate line unless the source itself requires it.
@@ -21,7 +21,7 @@ CRITICAL OUTPUT FORMATTING RULES:
 - Do not expose hidden reasoning.`;
 
 function parseDataUrl(dataUrl) {
-  const match = /^data:(image\\/[a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(dataUrl || "");
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(dataUrl || "");
   if (!match) throw new Error("Invalid image data URL.");
   const bytes = Buffer.byteLength(match[2], "base64");
   if (bytes > MAX_IMAGE_MB * 1024 * 1024) throw new Error(`Each image must be ${MAX_IMAGE_MB}MB or smaller.`);
@@ -51,34 +51,46 @@ async function callGemini(model, input, apiKey) {
   let lastMessage = "Gemini request failed.";
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        model,
-        input,
-        system_instruction: systemInstruction,
-        generation_config: {
-          thinking_level: "medium",
-          thinking_summaries: "none"
-        }
-      })
-    });
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "x-goog-api-key": apiKey,
+          "Api-Revision": "2026-05-20"
+        },
+        body: JSON.stringify({
+          model,
+          input,
+          system_instruction: systemInstruction,
+          generation_config: {
+            thinking_level: "medium",
+            thinking_summaries: "none"
+          }
+        })
+      });
 
-    const data = await response.json().catch(() => ({}));
-    lastStatus = response.status;
-    lastMessage = data?.error?.message || `Gemini API request failed (${response.status}).`;
+      const data = await response.json().catch(() => ({}));
+      lastStatus = response.status;
+      lastMessage = data?.error?.message || `Gemini API request failed (${response.status}).`;
 
-    if (response.ok) return { data, model };
+      if (response.ok) return { data, model };
 
-    if (!TRANSIENT.has(response.status)) {
-      const err = new Error(lastMessage);
-      err.status = response.status;
-      throw err;
+      if (!TRANSIENT.has(response.status)) {
+        const err = new Error(lastMessage);
+        err.status = response.status;
+        err.code = data?.error?.code || "gemini_api_error";
+        throw err;
+      }
+    } catch (error) {
+      if (error?.status) throw error;
+      lastStatus = 503;
+      lastMessage = error?.message || "Could not reach Gemini API.";
     }
 
     if (attempt < 2) {
-      const delay = 900 * (2 ** attempt) + Math.floor(Math.random() * 500);
+      const delay = 1000 * (2 ** attempt) + Math.floor(Math.random() * 700);
       await sleep(delay);
     }
   }
@@ -99,7 +111,13 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "GET") {
-    return res.status(200).json({ ok: true, aiConfigured: Boolean(process.env.GEMINI_API_KEY), api: "interactions", model: PRIMARY_MODEL, fallbacks: FALLBACK_MODELS });
+    return res.status(200).json({
+      ok: true,
+      aiConfigured: Boolean(process.env.GEMINI_API_KEY),
+      api: "interactions",
+      model: PRIMARY_MODEL,
+      fallbacks: FALLBACK_MODELS
+    });
   }
 
   if (req.method !== "POST") {
@@ -116,11 +134,15 @@ export default async function handler(req, res) {
     if (!Array.isArray(images)) return res.status(400).json({ error: "images must be an array." });
     if (images.length > MAX_IMAGES) return res.status(400).json({ error: `Maximum ${MAX_IMAGES} images per request.` });
 
-    const input = [{ type: "text", text: promptForMode(mode) + "\n\nAdditional student notes:\n" + (lesson || "(none)") + "\n\nFirst inspect every supplied page, then perform the task. Return only clean readable study material. No LaTeX, no dollar-sign formatting, no raw backslash commands, no Markdown syntax." }];
+    const input = [{
+      type: "text",
+      text: promptForMode(mode) + "\n\nAdditional student notes:\n" + (lesson || "(none)") + "\n\nFirst inspect every supplied page, then perform the task. Return only clean readable study material. No LaTeX, no dollar-sign formatting, no raw backslash commands, no Markdown syntax."
+    }];
 
     for (const dataUrl of images) {
       const img = parseDataUrl(dataUrl);
-      input.push({ type: "image", data: img.data, mime_type: img.mimeType, resolution: "high" });
+      // The Interactions API accepts inline base64 image content.
+      input.push({ type: "image", data: img.data, mime_type: img.mimeType });
     }
 
     let result = null;
@@ -142,13 +164,20 @@ export default async function handler(req, res) {
     }
 
     const outputText = result.data?.output_text ||
-      result.data?.steps?.flatMap(step => step?.content || [])?.filter(part => part?.type === "text")?.map(part => part.text || "")?.join("\n")?.trim() ||
+      result.data?.steps?.flatMap(step => step?.content || [])
+        ?.filter(part => part?.type === "text")
+        ?.map(part => part.text || "")
+        ?.join("\n")
+        ?.trim() ||
       "The AI returned no text.";
 
     return res.status(200).json({ ok: true, mode, model: result.model, output_text: outputText });
   } catch (error) {
-    console.error(error);
+    console.error("CanvasFlow Gemini error:", error);
     const status = Number.isInteger(error?.status) ? error.status : 500;
-    return res.status(status).json({ error: error?.message || "AI request failed." });
+    return res.status(status).json({
+      error: error?.message || "AI request failed.",
+      code: error?.code || "server_error"
+    });
   }
 }
