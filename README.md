@@ -1,9 +1,15 @@
-# CanvasFlow + Capacitor
+# CanvasFlow Capacitor V6
 
-CanvasFlow web app packaged with Capacitor for cloud iOS builds.
+This version fixes the Capacitor 8 iOS build entry point for Codemagic.
 
-## Codemagic
+Capacitor 8 uses Swift Package Manager, so the iOS build uses `ios/App/App.xcodeproj` rather than `App.xcworkspace`.
 
-The workflow installs dependencies with `npm install`, creates the Capacitor iOS project from the JSON config, syncs the `www` web app, archives with Xcode, and packages an unsigned IPA.
+Codemagic flow:
+1. npm install
+2. npx cap add ios
+3. npx cap sync ios
+4. Resolve Swift Package dependencies
+5. Xcode archive (unsigned)
+6. Package CanvasFlow.ipa
 
-The Capacitor config is intentionally JSON (`capacitor.config.json`) so the build does not require TypeScript to load the config.
+The IPA is intentionally unsigned for later signing with a compatible iOS signing tool.
