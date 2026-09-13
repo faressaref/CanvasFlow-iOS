@@ -33,6 +33,12 @@ workflows:
           npx cap add ios
           npx cap sync ios
 
+      - name: Install CanvasFlow app icon
+        script: |
+          set -e
+          chmod +x scripts/setup-ios-app-icon.sh
+          scripts/setup-ios-app-icon.sh
+
       - name: Verify Capacitor iOS project
         script: |
           set -e
