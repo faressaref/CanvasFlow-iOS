@@ -10,7 +10,9 @@ const replacements = [
   ["^#{1,3}s+", "^#{1,3}\\s+"],
   ["^[-*]s+", "^[-*]\\s+"],
   ["gemini-2.5-flash", "gemini-3.6-flash"],
-  ["localStorage.getItem(\"canvasflow-ai-endpoint\") || \"\"", "localStorage.getItem(\"canvasflow-ai-endpoint\") || \"/api/study\""]
+  ["localStorage.getItem(\"canvasflow-ai-endpoint\") || \"\"", "localStorage.getItem(\"canvasflow-ai-endpoint\") || \"/api/study\""],
+  ["localStorage.getItem(\"canvasflow-ai-endpoint\") || \"/api/study\"", "\"/api/study\""],
+  ["const endpoint = aiEndpoint.value.trim() || \"/api/study\";", "const endpoint = \"/api/study\";"]
 ];
 
 for (const [from, to] of replacements) s = s.split(from).join(to);
