@@ -1,18 +1,15 @@
 {
-  "name": "canvasflow-capacitor",
+  "name": "canvasflow-study-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "CanvasFlow whiteboard wrapped with Capacitor for iOS cloud builds",
+  "type": "module",
   "scripts": {
-    "cap:add:ios": "npx cap add ios",
-    "cap:sync": "npx cap sync ios",
-    "cap:doctor": "npx cap doctor"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
-    "@capacitor/core": "^8.0.0"
-  },
-  "devDependencies": {
-    "@capacitor/cli": "^8.0.0",
-    "@capacitor/ios": "^8.0.0"
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0"
   }
 }

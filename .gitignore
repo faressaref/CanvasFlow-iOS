@@ -1,7 +1,4 @@
 node_modules/
-ios/
+.env
+.vercel/
 .DS_Store
-build/
-Payload/
-*.ipa
-*.xcarchive
