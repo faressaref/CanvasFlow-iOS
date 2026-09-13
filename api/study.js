@@ -1,5 +1,11 @@
-const PRIMARY_MODEL = "gemini-3.6-flash";
-const FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-2.5-flash"];
+const PRIMARY_MODEL = "gemini-2.5-flash";
+const FALLBACK_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-3.7-flash",
+  "gemini-3.8-flash"
+];
 const MAX_IMAGES = Number(process.env.MAX_IMAGES || 12);
 const MAX_IMAGE_MB = Number(process.env.MAX_IMAGE_MB || 3);
 
@@ -28,35 +34,41 @@ function promptForMode(mode) {
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const TRANSIENT = new Set([408, 429, 500, 502, 503, 504]);
 
 async function callGemini(model, requestBody, apiKey) {
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-  let lastResponse;
+  let lastStatus = 500;
+  let lastMessage = "Gemini request failed.";
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  // Short retries for temporary capacity/rate/server failures.
+  for (let attempt = 0; attempt < 3; attempt++) {
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify(requestBody)
     });
-    lastResponse = response;
+
     const data = await response.json().catch(() => ({}));
+    lastStatus = response.status;
+    lastMessage = data?.error?.message || `Gemini API request failed (${response.status}).`;
 
     if (response.ok) return { data, model };
 
-    // Retry only transient capacity/rate/server errors, using exponential backoff + jitter.
-    if (![408, 429, 500, 502, 503, 504].includes(response.status)) {
-      const err = new Error(data?.error?.message || `Gemini API request failed (${response.status}).`);
+    if (!TRANSIENT.has(response.status)) {
+      const err = new Error(lastMessage);
       err.status = response.status;
       throw err;
     }
 
-    if (attempt < 3) await sleep(1200 * (2 ** attempt) + Math.floor(Math.random() * 700));
+    if (attempt < 2) {
+      const delay = 900 * (2 ** attempt) + Math.floor(Math.random() * 500);
+      await sleep(delay);
+    }
   }
 
-  const data = await lastResponse.json().catch(() => ({}));
-  const err = new Error(data?.error?.message || `Gemini API request failed (${lastResponse.status}).`);
-  err.status = lastResponse.status;
+  const err = new Error(lastMessage);
+  err.status = lastStatus;
   throw err;
 }
 
@@ -71,8 +83,14 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "GET") {
-    return res.status(200).json({ ok: true, aiConfigured: Boolean(process.env.GEMINI_API_KEY), model: PRIMARY_MODEL });
+    return res.status(200).json({
+      ok: true,
+      aiConfigured: Boolean(process.env.GEMINI_API_KEY),
+      model: PRIMARY_MODEL,
+      fallbacks: FALLBACK_MODELS
+    });
   }
+
   if (req.method !== "POST") {
     res.setHeader("Allow", "GET, POST, OPTIONS");
     return res.status(405).json({ error: "Method not allowed." });
@@ -80,14 +98,23 @@ export default async function handler(req, res) {
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(503).json({ error: "AI is not configured. Add GEMINI_API_KEY to Vercel Environment Variables." });
+    if (!apiKey) {
+      return res.status(503).json({ error: "AI is not configured. Add GEMINI_API_KEY to Vercel Environment Variables." });
+    }
 
     const { mode = "summary", lesson = "", images = [] } = req.body || {};
-    if (!lesson && (!Array.isArray(images) || images.length === 0)) return res.status(400).json({ error: "Send at least one lesson image or text." });
+    if (!lesson && (!Array.isArray(images) || images.length === 0)) {
+      return res.status(400).json({ error: "Send at least one lesson image or text." });
+    }
     if (!Array.isArray(images)) return res.status(400).json({ error: "images must be an array." });
     if (images.length > MAX_IMAGES) return res.status(400).json({ error: `Maximum ${MAX_IMAGES} images per request.` });
 
-    const parts = [{ text: promptForMode(mode) + "\n\nAdditional student notes:\n" + (lesson || "(none)") + "\n\nFirst inspect every supplied page, then perform the task." }];
+    const parts = [{
+      text: promptForMode(mode) +
+        "\n\nAdditional student notes:\n" + (lesson || "(none)") +
+        "\n\nFirst inspect every supplied page, then perform the task."
+    }];
+
     for (const dataUrl of images) {
       const img = parseDataUrl(dataUrl);
       parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
@@ -95,28 +122,47 @@ export default async function handler(req, res) {
 
     const requestBody = {
       systemInstruction: { parts: [{ text: systemInstruction }] },
-      contents: [{ role: "user", parts }]
+      contents: [{ role: "user", parts }],
+      generationConfig: { temperature: 0.35 }
     };
 
-    let result;
-    let lastError;
+    let result = null;
+    let lastError = null;
+
+    // Try a stable, high-capacity multimodal model first, then automatically
+    // fail over to other currently supported Gemini models if capacity is busy.
     for (const model of [PRIMARY_MODEL, ...FALLBACK_MODELS]) {
       try {
         result = await callGemini(model, requestBody, apiKey);
         break;
       } catch (error) {
         lastError = error;
-        if (![408, 429, 500, 502, 503, 504].includes(error?.status)) throw error;
+        if (!TRANSIENT.has(error?.status)) throw error;
       }
     }
 
-    if (!result) throw lastError || new Error("All Gemini models are temporarily unavailable.");
+    if (!result) {
+      const err = lastError || new Error("All Gemini models are temporarily unavailable.");
+      err.status = 503;
+      throw err;
+    }
 
-    const outputText = result.data?.candidates?.[0]?.content?.parts?.map(p => p?.text || "").join("\n").trim() || "The AI returned no text.";
-    return res.status(200).json({ ok: true, mode, model: result.model, output_text: outputText });
+    const outputText = result.data?.candidates?.[0]?.content?.parts
+      ?.map(p => p?.text || "")
+      .join("\n")
+      .trim() || "The AI returned no text.";
+
+    return res.status(200).json({
+      ok: true,
+      mode,
+      model: result.model,
+      output_text: outputText
+    });
   } catch (error) {
     console.error(error);
-    const status = Number.isInteger(error?.status) ? error.status : (/quota|rate|resource exhausted/i.test(error?.message || "") ? 429 : 500);
-    return res.status(status).json({ error: error?.message || "AI request failed." });
+    const status = Number.isInteger(error?.status) ? error.status : 500;
+    return res.status(status).json({
+      error: error?.message || "AI request failed."
+    });
   }
 }
