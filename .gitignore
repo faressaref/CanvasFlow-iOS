@@ -1,7 +1,0 @@
-node_modules/
-ios/
-.DS_Store
-build/
-Payload/
-*.ipa
-*.xcarchive
