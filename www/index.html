@@ -1208,7 +1208,7 @@
             <div class="ai-resize-hint">↘ اسحب من الركن لتغيير الحجم</div>
           </div>
           <div class="ai-head-actions">
-            <button type="button" class="ai-close" id="aiClose">×</button>
+            <button type="button" class="ai-position" id="aiPosition" title="تغيير مكان AI" aria-label="تغيير مكان AI">↕</button><button type="button" class="ai-close" id="aiClose">×</button>
           </div>
         </div>
         <div class="ai-body">
@@ -5111,6 +5111,45 @@ body.mobile-css-fullscreen #tabletQuickColors{
   document.addEventListener('click',function(e){
     var b=e.target.closest && e.target.closest('#mobilePhoneHeader .mbrand, #topbar .brand');
     if(b) goLanding(e);
+  });
+})();
+</script>
+
+<style id="final-ai-above-elements-position">
+@media screen and (max-width:760px), screen and (max-height:520px) and (max-width:900px){
+  /* AI opens directly above the Elements bar. */
+  #aiPanel{
+    top:auto !important;
+    bottom:calc(65px + max(7px, env(safe-area-inset-bottom))) !important;
+    height:min(72dvh, 560px) !important;
+    max-height:calc(100dvh - 82px) !important;
+    z-index:100000 !important;
+  }
+  #aiPanel.ai-position-top{
+    top:58px !important;
+    bottom:auto !important;
+    height:calc(100dvh - 128px) !important;
+    max-height:none !important;
+  }
+  #aiPanel .ai-head-actions{display:flex !important;align-items:center !important;gap:5px !important;}
+  #aiPanel .ai-position{
+    display:flex !important;align-items:center !important;justify-content:center !important;
+    width:30px !important;height:30px !important;padding:0 !important;
+    border:1px solid #dfe4ea !important;background:#fff !important;color:#18202a !important;
+    border-radius:8px !important;font-size:15px !important;cursor:pointer !important;
+  }
+}
+</style>
+<script>
+(function(){
+  const panel=document.getElementById('aiPanel');
+  const btn=document.getElementById('aiPosition');
+  if(!panel||!btn) return;
+  btn.addEventListener('click',function(e){
+    e.preventDefault(); e.stopPropagation();
+    panel.classList.toggle('ai-position-top');
+    btn.textContent=panel.classList.contains('ai-position-top')?'↓':'↕';
+    btn.title=panel.classList.contains('ai-position-top')?'وضع AI فوق':'وضع AI أعلى الـElements';
   });
 })();
 </script>
