@@ -8,11 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* CanvasFlowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* CanvasFlowApp.swift */; };
+		A10000000000000000000002 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000010 /* CanvasFlow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CanvasFlow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000011 /* CanvasFlowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFlowApp.swift; sourceTree = "<group>"; };
+		A10000000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -38,6 +40,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000011 /* CanvasFlowApp.swift */,
+				A10000000000000000000012 /* Info.plist */,
 			);
 			path = CanvasFlow;
 			sourceTree = "<group>";
@@ -149,12 +152,13 @@
 		A10000000000000000000071 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CanvasFlow/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.canvasflow.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.faressaref.canvasflow;
 				PRODUCT_NAME = CanvasFlow;
 				SWIFT_VERSION = 5.0;
 			};
@@ -163,12 +167,13 @@
 		A10000000000000000000072 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CanvasFlow/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.canvasflow.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.faressaref.canvasflow;
 				PRODUCT_NAME = CanvasFlow;
 				SWIFT_VERSION = 5.0;
 			};
