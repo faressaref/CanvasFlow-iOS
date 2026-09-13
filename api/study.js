@@ -1,24 +1,10 @@
-const PRIMARY_MODEL = "gemini-3.6-flash";
-const FALLBACK_MODELS = [
-  "gemini-3.7-flash",
-  "gemini-3.5-flash",
-  "gemini-3.5-flash-lite"
-];
+const DEFAULT_MODEL = "gemini-3.7-flash";
+const configuredModel = String(process.env.GEMINI_MODEL || "").trim();
+const MODEL = (/^(AQ\.|AIza)/i.test(configuredModel) || !/^gemini-[a-z0-9.-]+$/i.test(configuredModel)) ? DEFAULT_MODEL : configuredModel;
 const MAX_IMAGES = Number(process.env.MAX_IMAGES || 12);
 const MAX_IMAGE_MB = Number(process.env.MAX_IMAGE_MB || 3);
 
-const systemInstruction = `You are CanvasFlow Study Tutor, a personal tutor. The user is studying from photographed textbook pages. Read all supplied pages carefully, preserve their order and meaning, never invent unsupported facts, explain in clear Egyptian Arabic when possible while preserving important English/scientific terms, and make study material structured, exam-oriented, practical, visually scannable, and comfortable to read.
-
-CRITICAL OUTPUT FORMATTING RULES:
-- Output plain readable text only. Do NOT use LaTeX, TeX, math delimiters, dollar signs for formatting, backslashes for formatting, or Markdown code fences.
-- Never output raw commands such as \\rightarrow, \\text{}, \\frac{}, or similar markup. Replace arrows with the normal Unicode arrow → and write equations in ordinary readable text when needed.
-- Do not put asterisks around words. Do not output Markdown heading markers like # or ##.
-- Use normal headings, short paragraphs, bullets using • or numbered lists.
-- Keep Arabic sentences as normal continuous words; never put one character or one word on a separate line unless the source itself requires it.
-- For summaries, organize the material like a clean study sheet: title, sections, key points, examples, and exam tips. Use simple visual markers such as 📘, 💡, 🎯, ⚠️, and ✅ sparingly.
-- Preserve important English/scientific terminology exactly where useful, but keep surrounding Arabic natural.
-- If an image is unreadable, say which page/area is unclear. Do not invent missing content.
-- Do not expose hidden reasoning.`;
+const systemInstruction = `You are CanvasFlow Study Tutor, a personal tutor. Read all supplied textbook images carefully, preserve their order and meaning, never invent unsupported facts, explain in clear Egyptian Arabic when possible while preserving important English/scientific terms, and make study material structured, exam-oriented, practical, and easy to read. Output plain readable text only. No LaTeX, no dollar-sign formatting, no raw backslash commands, and no Markdown syntax.`;
 
 function parseDataUrl(dataUrl) {
   const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(dataUrl || "");
@@ -30,100 +16,28 @@ function parseDataUrl(dataUrl) {
 
 function promptForMode(mode) {
   const prompts = {
-    summary: "Create a complete study summary with a clear title, section headings, short paragraphs, bullets, definitions, examples, and key relationships. Make it look like a polished study handout.",
+    summary: "Create a complete study summary with clear headings, subheadings, bullets, definitions, examples, and key relationships.",
     explain: "Teach the lesson like a private tutor. Start with the big idea, then explain each section simply with examples and common confusions.",
-    important: "Extract exam-critical material under clear headings: MUST UNDERSTAND, MUST MEMORIZE, COMMON MISTAKES, IMPORTANT TERMS, and HIGH-YIELD FACTS. Write these as normal readable headings, not Markdown.",
-    quiz: "Create a realistic teacher-style exam with multiple choice, true/false, and short-answer questions, followed by a clear answer key.",
-    flashcards: "Create active-recall flashcards with focused questions and concise answers, prioritizing high-value facts and concepts.",
-    recall: "Start active recall by returning ONE question at a time, starting easy and increasing difficulty. Do not reveal the answer until the student answers.",
-    mindmap: "Turn the lesson into a clean hierarchical text mind map using normal arrows like → and bullets. Do not use Markdown or LaTeX markup.",
+    important: "Extract exam-critical material under MUST UNDERSTAND, MUST MEMORIZE, COMMON MISTAKES, IMPORTANT TERMS, and HIGH-YIELD FACTS.",
+    quiz: "Create a realistic teacher-style exam with multiple choice, true/false, and short-answer questions, followed by an answer key.",
+    flashcards: "Create active-recall flashcards with focused questions and concise answers.",
+    recall: "Ask ONE active-recall question at a time. Return the first question only and wait for the student's answer.",
+    mindmap: "Turn the lesson into a hierarchical text mind map using normal arrows like → and bullets.",
     studyplan: "Create a practical study plan for this exact lesson with study blocks, active recall, spaced review, and a final self-test."
   };
   return prompts[mode] || prompts.summary;
 }
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-const TRANSIENT = new Set([408, 429, 500, 502, 503, 504]);
-
-async function callGemini(model, input, apiKey) {
-  const apiUrl = "https://generativelanguage.googleapis.com/v1beta/interactions";
-  let lastStatus = 500;
-  let lastMessage = "Gemini request failed.";
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "x-goog-api-key": apiKey,
-          "Api-Revision": "2026-05-20"
-        },
-        body: JSON.stringify({
-          model,
-          input,
-          system_instruction: systemInstruction,
-          generation_config: {
-            thinking_level: "medium",
-            thinking_summaries: "none"
-          }
-        })
-      });
-
-      const data = await response.json().catch(() => ({}));
-      lastStatus = response.status;
-      lastMessage = data?.error?.message || `Gemini API request failed (${response.status}).`;
-
-      if (response.ok) return { data, model };
-
-      if (!TRANSIENT.has(response.status)) {
-        const err = new Error(lastMessage);
-        err.status = response.status;
-        err.code = data?.error?.code || "gemini_api_error";
-        throw err;
-      }
-    } catch (error) {
-      if (error?.status) throw error;
-      lastStatus = 503;
-      lastMessage = error?.message || "Could not reach Gemini API.";
-    }
-
-    if (attempt < 2) {
-      const delay = 1000 * (2 ** attempt) + Math.floor(Math.random() * 700);
-      await sleep(delay);
-    }
-  }
-
-  const err = new Error(lastMessage);
-  err.status = lastStatus;
-  throw err;
-}
-
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "*");
   res.setHeader("Cache-Control", "no-store");
-
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     return res.status(204).end();
   }
-
-  if (req.method === "GET") {
-    return res.status(200).json({
-      ok: true,
-      aiConfigured: Boolean(process.env.GEMINI_API_KEY),
-      api: "interactions",
-      model: PRIMARY_MODEL,
-      fallbacks: FALLBACK_MODELS
-    });
-  }
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST, OPTIONS");
-    return res.status(405).json({ error: "Method not allowed." });
-  }
+  if (req.method === "GET") return res.status(200).json({ ok: true, aiConfigured: Boolean(process.env.GEMINI_API_KEY), model: MODEL });
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed." });
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -134,50 +48,37 @@ export default async function handler(req, res) {
     if (!Array.isArray(images)) return res.status(400).json({ error: "images must be an array." });
     if (images.length > MAX_IMAGES) return res.status(400).json({ error: `Maximum ${MAX_IMAGES} images per request.` });
 
-    const input = [{
-      type: "text",
-      text: promptForMode(mode) + "\n\nAdditional student notes:\n" + (lesson || "(none)") + "\n\nFirst inspect every supplied page, then perform the task. Return only clean readable study material. No LaTeX, no dollar-sign formatting, no raw backslash commands, no Markdown syntax."
-    }];
-
+    const parts = [{ text: promptForMode(mode) + "\n\nAdditional student notes:\n" + (lesson || "(none)") + "\n\nFirst inspect every supplied page, then perform the task. Return only clean readable study material." }];
     for (const dataUrl of images) {
       const img = parseDataUrl(dataUrl);
-      // The Interactions API accepts inline base64 image content.
-      input.push({ type: "image", data: img.data, mime_type: img.mimeType });
+      parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
     }
 
-    let result = null;
-    let lastError = null;
-    for (const model of [PRIMARY_MODEL, ...FALLBACK_MODELS]) {
-      try {
-        result = await callGemini(model, input, apiKey);
-        break;
-      } catch (error) {
-        lastError = error;
-        if (!TRANSIENT.has(error?.status)) throw error;
-      }
-    }
+    const requestBody = {
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ role: "user", parts }],
+      generationConfig: { temperature: 0.35 }
+    };
 
-    if (!result) {
-      const err = lastError || new Error("All Gemini models are temporarily unavailable.");
-      err.status = 503;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`;
+    const googleResponse = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify(requestBody)
+    });
+    const googleData = await googleResponse.json().catch(() => ({}));
+    if (!googleResponse.ok) {
+      const err = new Error(googleData?.error?.message || `Gemini API request failed (${googleResponse.status}).`);
+      err.status = googleResponse.status;
       throw err;
     }
 
-    const outputText = result.data?.output_text ||
-      result.data?.steps?.flatMap(step => step?.content || [])
-        ?.filter(part => part?.type === "text")
-        ?.map(part => part.text || "")
-        ?.join("\n")
-        ?.trim() ||
-      "The AI returned no text.";
-
-    return res.status(200).json({ ok: true, mode, model: result.model, output_text: outputText });
+    const outputText = googleData?.candidates?.[0]?.content?.parts?.map(part => part?.text || "").join("\n").trim();
+    if (!outputText) throw new Error("The AI returned no text.");
+    return res.status(200).json({ ok: true, mode, model: MODEL, output_text: outputText });
   } catch (error) {
     console.error("CanvasFlow Gemini error:", error);
     const status = Number.isInteger(error?.status) ? error.status : 500;
-    return res.status(status).json({
-      error: error?.message || "AI request failed.",
-      code: error?.code || "server_error"
-    });
+    return res.status(status).json({ error: error?.message || "AI request failed." });
   }
 }
