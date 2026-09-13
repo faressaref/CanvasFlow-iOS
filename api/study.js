@@ -1,15 +1,13 @@
-const PRIMARY_MODEL = "gemini-2.5-flash";
+const PRIMARY_MODEL = "gemini-3.6-flash";
 const FALLBACK_MODELS = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.5-flash",
-  "gemini-3.6-flash",
   "gemini-3.7-flash",
-  "gemini-3.8-flash"
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite"
 ];
 const MAX_IMAGES = Number(process.env.MAX_IMAGES || 12);
 const MAX_IMAGE_MB = Number(process.env.MAX_IMAGE_MB || 3);
 
-const systemInstruction = `You are CanvasFlow Study Tutor, a personal tutor. The user is studying from photographed textbook pages. Read all supplied pages carefully, preserve their order and meaning, never invent unsupported facts, explain in clear Egyptian Arabic when possible while preserving important English/scientific terms, and make study material structured, exam-oriented, and practical. If an image is unreadable, say which page/area is unclear. Do not expose hidden reasoning.`;
+const systemInstruction = `You are CanvasFlow Study Tutor, a personal tutor. The user is studying from photographed textbook pages. Read all supplied pages carefully, preserve their order and meaning, never invent unsupported facts, explain in clear Egyptian Arabic when possible while preserving important English/scientific terms, and make study material structured, exam-oriented, and practical. If an image is unreadable, say which page/area is unclear. Return normal readable paragraphs and bullet points; never put one character or one word on a separate line unless the source itself requires it. Do not expose hidden reasoning.`;
 
 function parseDataUrl(dataUrl) {
   const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(dataUrl || "");
@@ -36,17 +34,24 @@ function promptForMode(mode) {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const TRANSIENT = new Set([408, 429, 500, 502, 503, 504]);
 
-async function callGemini(model, requestBody, apiKey) {
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+async function callGemini(model, input, apiKey) {
+  const apiUrl = "https://generativelanguage.googleapis.com/v1beta/interactions";
   let lastStatus = 500;
   let lastMessage = "Gemini request failed.";
 
-  // Short retries for temporary capacity/rate/server failures.
   for (let attempt = 0; attempt < 3; attempt++) {
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify({
+        model,
+        input,
+        system_instruction: systemInstruction,
+        generation_config: {
+          thinking_level: "medium",
+          thinking_summaries: "none"
+        }
+      })
     });
 
     const data = await response.json().catch(() => ({}));
@@ -86,6 +91,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       aiConfigured: Boolean(process.env.GEMINI_API_KEY),
+      api: "interactions",
       model: PRIMARY_MODEL,
       fallbacks: FALLBACK_MODELS
     });
@@ -109,31 +115,29 @@ export default async function handler(req, res) {
     if (!Array.isArray(images)) return res.status(400).json({ error: "images must be an array." });
     if (images.length > MAX_IMAGES) return res.status(400).json({ error: `Maximum ${MAX_IMAGES} images per request.` });
 
-    const parts = [{
+    const input = [{
+      type: "text",
       text: promptForMode(mode) +
         "\n\nAdditional student notes:\n" + (lesson || "(none)") +
-        "\n\nFirst inspect every supplied page, then perform the task."
+        "\n\nFirst inspect every supplied page, then perform the task. Keep the final answer as normal readable study notes with natural line wrapping."
     }];
 
     for (const dataUrl of images) {
       const img = parseDataUrl(dataUrl);
-      parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+      input.push({
+        type: "image",
+        data: img.data,
+        mime_type: img.mimeType,
+        resolution: "high"
+      });
     }
-
-    const requestBody = {
-      systemInstruction: { parts: [{ text: systemInstruction }] },
-      contents: [{ role: "user", parts }],
-      generationConfig: { temperature: 0.35 }
-    };
 
     let result = null;
     let lastError = null;
 
-    // Try a stable, high-capacity multimodal model first, then automatically
-    // fail over to other currently supported Gemini models if capacity is busy.
     for (const model of [PRIMARY_MODEL, ...FALLBACK_MODELS]) {
       try {
-        result = await callGemini(model, requestBody, apiKey);
+        result = await callGemini(model, input, apiKey);
         break;
       } catch (error) {
         lastError = error;
@@ -147,10 +151,13 @@ export default async function handler(req, res) {
       throw err;
     }
 
-    const outputText = result.data?.candidates?.[0]?.content?.parts
-      ?.map(p => p?.text || "")
-      .join("\n")
-      .trim() || "The AI returned no text.";
+    const outputText = result.data?.output_text ||
+      result.data?.steps?.flatMap(step => step?.content || [])
+        ?.filter(part => part?.type === "text")
+        ?.map(part => part.text || "")
+        ?.join("\n")
+        ?.trim() ||
+      "The AI returned no text.";
 
     return res.status(200).json({
       ok: true,
