@@ -21,6 +21,30 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             build
 
+      - name: Package unsigned IPA
+        script: |
+          APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" \
+            -path "*/Build/Products/Release-iphoneos/CanvasFlowIOS.app" \
+            -type d \
+            -print -quit)
+
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: CanvasFlowIOS.app not found"
+            exit 1
+          fi
+
+          rm -rf "$CM_BUILD_DIR/Payload"
+          rm -f "$CM_BUILD_DIR/CanvasFlowIOS.ipa"
+
+          mkdir -p "$CM_BUILD_DIR/Payload"
+          cp -R "$APP_PATH" "$CM_BUILD_DIR/Payload/"
+
+          cd "$CM_BUILD_DIR"
+          zip -qry CanvasFlowIOS.ipa Payload
+
+          echo "IPA CREATED:"
+          ls -lh CanvasFlowIOS.ipa
+
     artifacts:
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - CanvasFlowIOS.ipa
       - /tmp/xcodebuild_logs/*.log
