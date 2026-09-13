@@ -8,7 +8,12 @@ workflows:
       xcode: latest
 
     scripts:
-      - name: Build CanvasFlow iOS
+      - name: Clean build folder
+        script: |
+          rm -rf "$CM_BUILD_DIR/build"
+          mkdir -p "$CM_BUILD_DIR/build"
+
+      - name: Archive CanvasFlow
         script: |
           xcodebuild \
             -project "$CM_BUILD_DIR/CanvasFlowIOS.xcodeproj" \
@@ -16,35 +21,33 @@ workflows:
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
+            -archivePath "$CM_BUILD_DIR/build/CanvasFlowIOS.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build
+            archive
 
-      - name: Package unsigned IPA
+      - name: Create IPA
         script: |
-          APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" \
-            -path "*/Build/Products/Release-iphoneos/CanvasFlowIOS.app" \
-            -type d \
-            -print -quit)
+          APP_PATH="$CM_BUILD_DIR/build/CanvasFlowIOS.xcarchive/Products/Applications/CanvasFlowIOS.app"
 
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: CanvasFlowIOS.app not found"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: CanvasFlowIOS.app was not found inside the archive."
             exit 1
           fi
 
           rm -rf "$CM_BUILD_DIR/Payload"
           rm -f "$CM_BUILD_DIR/CanvasFlowIOS.ipa"
 
-          mkdir -p "$CM_BUILD_DIR/Payload"
+          mkdir "$CM_BUILD_DIR/Payload"
           cp -R "$APP_PATH" "$CM_BUILD_DIR/Payload/"
 
           cd "$CM_BUILD_DIR"
-          zip -qry CanvasFlowIOS.ipa Payload
+          zip -qry "CanvasFlowIOS.ipa" "Payload"
 
-          echo "IPA CREATED:"
-          ls -lh CanvasFlowIOS.ipa
+          echo "===== IPA CREATED ====="
+          ls -lh "$CM_BUILD_DIR/CanvasFlowIOS.ipa"
 
     artifacts:
       - CanvasFlowIOS.ipa
-      - /tmp/xcodebuild_logs/*.log
+      - build/CanvasFlowIOS.xcarchive
