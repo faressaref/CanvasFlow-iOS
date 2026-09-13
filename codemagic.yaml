@@ -4,24 +4,19 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.faressaref.canvasflow
       xcode: latest
     scripts:
-      - name: Build unsigned IPA
+      - name: Select signing profiles
         script: |
-          set -e
-          rm -rf build
-          xcodebuild -project "ios/CanvasFlow.xcodeproj" \
-            -scheme "CanvasFlow" \
-            -configuration Release \
-            -sdk iphoneos \
-            -archivePath build/CanvasFlow.xcarchive \
-            archive \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
-          mkdir -p build/ios/ipa/Payload
-          cp -R build/CanvasFlow.xcarchive/Products/Applications/CanvasFlow.app build/ios/ipa/Payload/
-          cd build/ios/ipa
-          zip -qry CanvasFlow-unsigned.ipa Payload
+          xcode-project use-profiles
+      - name: Build signed IPA
+        script: |
+          xcode-project build-ipa \
+            --project "ios/CanvasFlow.xcodeproj" \
+            --scheme "CanvasFlow"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
