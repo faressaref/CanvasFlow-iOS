@@ -31,5 +31,10 @@ if (!s.includes("#aiKey{display:none")) {
   s = s.replace(".ai-result.empty {", "#aiKey{display:none !important;}\n    .ai-result.empty {");
 }
 
+// TEMPORARY: unmistakable marker to test whether the installed IPA loads the latest Vercel web build.
+if (!s.includes("canvasflow-version-test-marker")) {
+  s = s.replace("</body>", `<div id="canvasflow-version-test-marker" style="position:fixed;right:12px;bottom:12px;z-index:2147483647;background:#ff2d55;color:#fff;padding:10px 14px;border-radius:12px;font:700 14px Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25);">WEB TEST 2026</div></body>`);
+}
+
 fs.writeFileSync(file, s, "utf8");
 console.log("CanvasFlow: base AI note fixes applied.");
