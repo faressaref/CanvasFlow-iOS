@@ -5,15 +5,18 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
+      node: 22
       xcode: latest
 
     scripts:
       - name: Install Node dependencies
         script: |
-          npm ci
+          set -e
+          npm install --no-audit --no-fund
 
       - name: Create and sync Capacitor iOS project
         script: |
+          set -e
           rm -rf ios
           npx cap add ios
           npx cap sync ios
@@ -21,13 +24,15 @@ workflows:
 
       - name: Verify app identity
         script: |
+          set -e
           echo "===== CanvasFlow identity ====="
-          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" ios/App/App/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" ios/App/App/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" ios/App/App/Info.plist
           grep -R "PRODUCT_BUNDLE_IDENTIFIER" ios/App/App.xcodeproj/project.pbxproj || true
 
       - name: Archive unsigned iOS app
         script: |
+          set -e
           rm -rf "$CM_BUILD_DIR/build"
           mkdir -p "$CM_BUILD_DIR/build"
 
@@ -57,7 +62,6 @@ workflows:
           rm -f "$CM_BUILD_DIR/CanvasFlow.ipa"
           mkdir -p "$CM_BUILD_DIR/Payload"
 
-          # Keep the bundle exactly as produced by Xcode.
           cp -R "$APP_PATH" "$CM_BUILD_DIR/Payload/App.app"
 
           cd "$CM_BUILD_DIR"
@@ -70,3 +74,4 @@ workflows:
     artifacts:
       - CanvasFlow.ipa
       - build/CanvasFlow.xcarchive
+      - /tmp/xcodebuild_logs/*.log

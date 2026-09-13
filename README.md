@@ -1,24 +1,13 @@
-# CanvasFlow + Capacitor
+# CanvasFlow Capacitor V4
 
-This package wraps the current CanvasFlow web app in Capacitor for a cloud iOS build.
+This version fixes the Codemagic dependency-install failure by using `npm install` instead of `npm ci`. Codemagic documents that `npm ci` requires an existing `package-lock.json`/shrinkwrap, while `npm install` is the normal dependency step for Capacitor projects.
 
-## Windows
-1. Extract this folder.
-2. Run `setup-capacitor.bat` once.
-3. Push the whole folder to GitHub.
+## Build flow
 
-Do not expect an `ios` folder to be generated on Windows. Codemagic creates the iOS project on macOS with `npx cap add ios`.
+1. `npm install --no-audit --no-fund`
+2. `npx cap add ios`
+3. `npx cap sync ios`
+4. Xcode archive (unsigned)
+5. Package `CanvasFlow.ipa`
 
-## Codemagic
-The included `codemagic.yaml`:
-- installs dependencies with `npm ci`
-- creates a fresh Capacitor iOS project
-- syncs `www/index.html`
-- verifies the bundle ID and display name
-- archives with Xcode
-- packages the Xcode app bundle into `CanvasFlow.ipa`
-
-Bundle ID: `com.canvasflow.study`
-Display name: `CanvasFlow`
-
-The resulting IPA is intentionally unsigned. It is intended to be signed with your own signing/provisioning method (for example KSign) before installation on an iPhone.
+The IPA is intentionally unsigned so it can be processed by your own signing tool.
