@@ -1059,7 +1059,7 @@
       <h1 class="landing-title">What do you want to do?</h1>
       <p class="landing-sub">اختار طريقة الشغل. لو عندك درس من الكتاب، ارفع صور الصفحات والـ AI يحولها لمذاكرة كاملة.</p>
       <div class="mode-cards">
-        <div class="mode-card" id="chooseAI">
+        <div class="mode-card" id="chooseAI" role="button" tabindex="0" aria-label="AI Study Tutor" onclick="if(window.enterApp){window.enterApp(true)}" ontouchend="if(window.enterApp){event.preventDefault();window.enterApp(true)}">
           <div class="mode-icon">✦</div>
           <h2>AI Study Tutor</h2>
           <p>ارفع صور الدرس بدل ما تكتبه، وخلي الـ AI يستخرج المحتوى ويعملك مذاكرة كاملة.</p>
@@ -1067,7 +1067,7 @@
             <li>📷 صور من الكتاب</li><li>📚 ملخص + شرح</li><li>📝 امتحان + Flashcards</li><li>📄 PDF جاهز</li>
           </ul>
         </div>
-        <div class="mode-card" id="chooseBoard">
+        <div class="mode-card" id="chooseBoard" role="button" tabindex="0" aria-label="Whiteboard" onclick="if(window.enterApp){window.enterApp(false)}" ontouchend="if(window.enterApp){event.preventDefault();window.enterApp(false)}">
           <div class="mode-icon">✎</div>
           <h2>Whiteboard</h2>
           <p>افتح مساحة الرسم والمذاكرة التفاعلية وارسم، اكتب، اعمل Mind Maps وحط الصور.</p>
