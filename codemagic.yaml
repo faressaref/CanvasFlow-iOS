@@ -1,0 +1,72 @@
+workflows:
+  ios-capacitor:
+    name: CanvasFlow Capacitor iOS
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      xcode: latest
+
+    scripts:
+      - name: Install Node dependencies
+        script: |
+          npm ci
+
+      - name: Create and sync Capacitor iOS project
+        script: |
+          rm -rf ios
+          npx cap add ios
+          npx cap sync ios
+          npx cap doctor
+
+      - name: Verify app identity
+        script: |
+          echo "===== CanvasFlow identity ====="
+          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" ios/App/App/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" ios/App/App/Info.plist || true
+          grep -R "PRODUCT_BUNDLE_IDENTIFIER" ios/App/App.xcodeproj/project.pbxproj || true
+
+      - name: Archive unsigned iOS app
+        script: |
+          rm -rf "$CM_BUILD_DIR/build"
+          mkdir -p "$CM_BUILD_DIR/build"
+
+          xcodebuild \
+            -workspace "$CM_BUILD_DIR/ios/App/App.xcworkspace" \
+            -scheme "App" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$CM_BUILD_DIR/build/CanvasFlow.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
+
+      - name: Package unsigned IPA
+        script: |
+          set -e
+          APP_PATH="$CM_BUILD_DIR/build/CanvasFlow.xcarchive/Products/Applications/App.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: App.app was not found in archive."
+            exit 1
+          fi
+
+          rm -rf "$CM_BUILD_DIR/Payload"
+          rm -f "$CM_BUILD_DIR/CanvasFlow.ipa"
+          mkdir -p "$CM_BUILD_DIR/Payload"
+
+          # Keep the bundle exactly as produced by Xcode.
+          cp -R "$APP_PATH" "$CM_BUILD_DIR/Payload/App.app"
+
+          cd "$CM_BUILD_DIR"
+          zip -qry "CanvasFlow.ipa" "Payload"
+
+          echo "===== IPA CREATED ====="
+          unzip -l "CanvasFlow.ipa"
+          ls -lh "CanvasFlow.ipa"
+
+    artifacts:
+      - CanvasFlow.ipa
+      - build/CanvasFlow.xcarchive
