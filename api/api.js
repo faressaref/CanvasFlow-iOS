@@ -1,4 +1,4 @@
-const DEFAULT_MODEL = "gemini-3.8-flash";
+const DEFAULT_MODEL = "gemini-3.7-flash";
 const configuredModel = String(process.env.GEMINI_MODEL || "").trim();
 const MODEL = (/^(AQ\.|AIza)/i.test(configuredModel) || !/^gemini-[a-z0-9.-]+$/i.test(configuredModel))
   ? DEFAULT_MODEL
@@ -124,8 +124,6 @@ export default async function handler(req, res) {
       body: JSON.stringify(requestBody)
     });
 
-    // Some newly issued Google auth/AQ keys can behave differently depending on
-    // how the key is transported. Retry once using the documented ?key= form.
     if (googleResponse.status === 401) {
       googleResponse = await fetch(`${apiUrl}?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
         method: "POST",
