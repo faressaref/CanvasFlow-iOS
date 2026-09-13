@@ -1848,20 +1848,10 @@ if (tabletUndo) tabletUndo.addEventListener("click", undo);
 if (tabletRedo) tabletRedo.addEventListener("click", redo);
 
 function resizeCanvas() {
-  const vv = window.visualViewport;
-  const isPhone = window.matchMedia("(max-width:760px)").matches;
-  const shortLandscape = window.matchMedia("(max-width:900px) and (max-height:520px)").matches;
-
-  // On phones the header/footer are fixed overlays, so size Fabric to the
-  // actual visible whiteboard area rather than the full viewport.
-  const topInset = isPhone ? (shortLandscape ? 50 : 58) : 0;
-  const bottomInset = isPhone ? (shortLandscape ? 66 : 72) : 0;
-  const width = Math.max(1, Math.round((vv ? vv.width : workspace.clientWidth)));
-  const viewportHeight = vv ? vv.height : window.innerHeight;
-  const height = isPhone
-    ? Math.max(1, Math.round(viewportHeight - topInset - bottomInset))
-    : Math.max(1, workspace.clientHeight);
-
+  // Size Fabric to the actual visible board wrapper so width/height match
+  // the whiteboard area exactly on every screen size and orientation.
+  const width = Math.max(1, Math.round(wrap.clientWidth));
+  const height = Math.max(1, Math.round(wrap.clientHeight));
   canvas.setWidth(width);
   canvas.setHeight(height);
   canvas.requestRenderAll();
@@ -4250,6 +4240,10 @@ body.mobile-css-fullscreen #exitFullscreenBtn { display: flex !important; }
     #canvasWrap{
       top:50px !important;
       bottom:66px !important;
+      left:0 !important;
+      right:0 !important;
+      width:100vw !important;
+      height:calc(100dvh - 116px) !important;
     }
 
     body.in-fullscreen #canvasWrap,
@@ -4259,6 +4253,21 @@ body.mobile-css-fullscreen #exitFullscreenBtn { display: flex !important; }
       height:100dvh !important;
     }
   }
+</style>
+
+<style id="quick-colors-landing-fix">
+/* Quick color shortcut: hidden only on Landing Page, visible inside the Whiteboard. */
+@media screen and (max-width:760px), screen and (max-height:520px) and (max-width:900px){
+  body.landing-active #mobileQuickPenColors{display:none !important;}
+  body:not(.landing-active) #mobileQuickPenColors{display:flex !important;visibility:visible !important;pointer-events:auto !important;}
+}
+</style>
+
+<style id="final-single-mobile-color-shortcut">
+/* Keep only ONE quick-color shortcut on the whiteboard. */
+#tabletQuickColors{display:none !important;visibility:hidden !important;pointer-events:none !important;}
+/* The mobile quick-color shortcut remains available inside the board. */
+body:not(.landing-active) #mobileQuickPenColors{display:flex !important;visibility:visible !important;pointer-events:auto !important;}
 </style>
 </body>
 
@@ -5066,3 +5075,33 @@ body.mobile-css-fullscreen #tabletQuickColors{
 
     .board-select-check{display:none;width:16px;height:16px;flex:0 0 auto;cursor:pointer;accent-color:#18202a}.board-item-main{display:flex;align-items:center;gap:8px;flex:1;min-width:0}#boardsModal.select-mode .board-select-check{display:block}#boardsModal.select-mode .board-item.selected{border-color:#18202a;background:#f1f3f6}#boardsModal.select-mode .board-item-actions{display:none}#boardsModal.select-mode #selectBoardsBtn{display:none}
 </style>
+
+<style id="landing-size-logo-fix">
+/* Landing page: compact and viewport-safe */
+@media screen and (min-width:761px){
+  #landing, .landing, #landingPage{max-width:100%; width:100%; max-height:100vh; min-height:0; box-sizing:border-box; overflow:hidden;}
+}
+@media screen and (max-width:760px){
+  #landing, .landing, #landingPage{width:100%; max-width:100%; min-height:100dvh; height:100dvh; box-sizing:border-box; overflow:hidden;}
+}
+/* Header logo returns to landing page */
+#mobilePhoneHeader .mbrand, #topbar .brand{cursor:pointer !important;}
+</style>
+<script id="landing-logo-fix">
+(function(){
+  function goLanding(e){
+    if(e) e.preventDefault();
+    var selectors=['#landing','#landingPage','.landing','.landing-page'];
+    var el=null; for(var i=0;i<selectors.length;i++){el=document.querySelector(selectors[i]);if(el)break;}
+    if(el){document.querySelectorAll('body > *').forEach(function(x){if(x!==el && x.id!=='landing' && x.id!=='landingPage'){} });}
+    if(typeof window.showLanding==='function') window.showLanding();
+    else if(typeof window.showLandingPage==='function') window.showLandingPage();
+    else if(typeof window.goHome==='function') window.goHome();
+    else location.hash='';
+  }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest && e.target.closest('#mobilePhoneHeader .mbrand, #topbar .brand');
+    if(b) goLanding(e);
+  });
+})();
+</script>
